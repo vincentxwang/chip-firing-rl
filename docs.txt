@@ -1,0 +1,2 @@
+1. install julia call via `pip install juliacall`
+2. run `py.py` (first time will take a while)
