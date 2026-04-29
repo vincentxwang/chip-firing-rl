@@ -23,6 +23,13 @@ def compute_gon_2_subdivision(multigraph_matrix):
     gonality = jl.compute_gonality(jl.subdivide(g, 2))
     return gonality
 
+def compute_treewidth(multigraph_matrix):
+    to_julia_matrix = jl.seval("py_list -> [Int64(py_list[i][j]) for i in 1:length(py_list), j in 1:length(py_list[1])]")
+    jl_matrix = to_julia_matrix(multigraph_matrix)
+    g = jl.ChipFiringGraph(jl_matrix)
+    tw = jl.exact_treewidth(jl.SimpleGraph(g.adj_matrix))
+    return tw
+
 
 
 # demo
@@ -36,6 +43,8 @@ python_matrix = [
 
 py_gonality = compute_gonality(python_matrix)
 py_gonality2 = compute_gon_2_subdivision(python_matrix)
+py_tw = compute_treewidth(python_matrix)
 
 print(f"Gonality computed from Python: {py_gonality}")
-print(f"UGonality computed from Python: {py_gonality2}")
+print(f"Gonsig2G computed from Python: {py_gonality2}")
+print(f"TW computed from Python: {py_tw}")

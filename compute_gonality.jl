@@ -1,9 +1,11 @@
 using Pkg
 Pkg.add("ChipFiring")
 Pkg.add("Graphs")
+Pkg.add("TreeWidthSolver")
 
 using ChipFiring
 using Graphs
+using TreeWidthSolver
 
 multiplicity_matrix = [
     0 2 0 1;
