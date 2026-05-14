@@ -1,0 +1,1 @@
+this is just a folder of adjacency matrices of all the graphs we know of!
