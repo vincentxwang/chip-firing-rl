@@ -90,7 +90,7 @@ Found savings for graph #3468: "Graph(V=14, E=21, Edges=[(1, 2), (1, 3), (1, 4),
 
 
 
-# back to 1st savings: please sample a portion of these (uniformly at random) so we don't have large class imbalance. these are trivalent genus 9 multigraphs.
+# back to 1st savings: these are trivalent genus 9 multigraphs.
 
 Found savings for graph #529: "Graph(V=16, E=24, Edges=[(1, 2), (1, 2), (1, 3), (2, 11), (3, 4), (3, 4), (4, 12), (5, 6), (5, 6), (5, 7), (6, 11), (7, 8), (7, 8), (8, 13), (9, 10), (9, 10), (9, 11), (10, 14), (12, 13), (12, 15), (13, 16), (14, 15), (14, 16), (15, 16)])" (gon1=6, gon2=5)
 Found savings for graph #1708: "Graph(V=16, E=24, Edges=[(1, 2), (1, 2), (1, 3), (2, 9), (3, 4), (3, 4), (4, 10), (5, 6), (5, 6), (5, 9), (6, 11), (7, 8), (7, 8), (7, 9), (8, 12), (10, 13), (10, 14), (11, 13), (11, 15), (12, 14), (12, 16), (13, 15), (14, 16), (15, 16)])" (gon1=6, gon2=5)
