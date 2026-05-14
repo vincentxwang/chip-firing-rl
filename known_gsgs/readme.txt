@@ -12,4 +12,4 @@ sigma_2(G): 5
 vertices: 7
 edges: 15
 
-
+the graphs in V10-simple are taken from "discrete and metric gonality can be different"
