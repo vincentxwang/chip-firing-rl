@@ -5,7 +5,7 @@ import networkx as nx
 from juliacall import Main as jl
 
 # Load Julia code
-jl.include("../compute_gonality.jl")
+jl.include("compute_gonality.jl")
 
 # -------------------------------------------------------------------
 # JULIA CHIP-FIRING FUNCTIONS
@@ -246,7 +246,7 @@ if __name__ == "__main__":
     # validate_known_gsgs(target_folder)
     
     # Example: Run it on all folders listed in your dictionary
-    base_dir = "../known_gsgs"
+    base_dir = "known_gsgs"
     for folder_name in folder_to_vertices.keys():
         target_path = os.path.join(base_dir, folder_name)
         if os.path.exists(target_path):
