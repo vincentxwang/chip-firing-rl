@@ -31,7 +31,7 @@ def compute_gon_2_subdivision(multigraph_matrix):
     rank_to_check = gonality
 
     while rank_to_check > 0:
-        if jl.compute_gonality(jl.subdivide(g, 2), min_d=rank_to_check, max_d=rank_to_check, verbose=True) == -1:
+        if jl.compute_gonality(jl.subdivide(g, 2), min_d=rank_to_check, max_d=rank_to_check) == -1:
             return rank_to_check + 1
         rank_to_check -= 1
     
