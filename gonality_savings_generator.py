@@ -18,7 +18,6 @@ for the uniform-gonality comparison used elsewhere in this repo.
 from __future__ import annotations
 
 import argparse
-import itertools
 import json
 import random
 import re
@@ -32,6 +31,8 @@ VISUALIZER_DIR = REPO_ROOT / "Representation"
 sys.path.insert(0, str(VISUALIZER_DIR))
 
 from visualize_gonality_graph import draw_multigraph, edge_list_to_multigraph, matrix_to_edges
+
+import networkx as nx
 
 
 jl = None
@@ -84,46 +85,14 @@ def matrix_key(matrix: list[list[int]], space: SearchSpace) -> tuple[int, ...]:
     return tuple(matrix[i][j] for i, j in space.edge_pairs)
 
 
-def vertex_signature(matrix: list[list[int]], vertex: int, space: SearchSpace) -> tuple[int, ...]:
-    row = matrix[vertex]
-    multiplicity_counts = tuple(sum(1 for value in row if value == mult) for mult in range(1, space.max_multiplicity + 1))
-    return multiplicity_counts + (sum(row),)
-
-
-def canonical_permutation_count(groups: list[list[int]]) -> int:
-    total = 1
-    for group in groups:
-        for value in range(2, len(group) + 1):
-            total *= value
-    return total
-
-
-def canonical_isomorphism_key(matrix: list[list[int]], space: SearchSpace, max_permutations: int) -> tuple[int, ...]:
-    signatures: dict[tuple[int, ...], list[int]] = {}
-    for vertex in range(space.vertices):
-        signatures.setdefault(vertex_signature(matrix, vertex, space), []).append(vertex)
-
-    ordered_groups = [signatures[key] for key in sorted(signatures)]
-    permutation_count = canonical_permutation_count(ordered_groups)
-    if permutation_count > max_permutations:
-        raise ValueError(
-            f"canonical labeling would require {permutation_count} permutations; "
-            f"increase --max-canonical-permutations or pass --allow-isomorphic-savings"
-        )
-
-    best: tuple[int, ...] | None = None
-    for group_permutations in itertools.product(*(itertools.permutations(group) for group in ordered_groups)):
-        permutation = tuple(vertex for group in group_permutations for vertex in group)
-        key = tuple(
-            matrix[permutation[i]][permutation[j]]
-            for i in range(space.vertices)
-            for j in range(i + 1, space.vertices)
-        )
-        if best is None or key < best:
-            best = key
-    if best is None:
-        raise RuntimeError("failed to compute canonical isomorphism key")
-    return best
+def wl_isomorphism_key(matrix: list[list[int]], space: SearchSpace, iterations: int) -> str:
+    graph = nx.Graph()
+    graph.add_nodes_from(range(space.vertices))
+    for i, j in space.edge_pairs:
+        multiplicity = matrix[i][j]
+        if multiplicity > 0:
+            graph.add_edge(i, j, multiplicity=str(multiplicity))
+    return nx.weisfeiler_lehman_graph_hash(graph, edge_attr="multiplicity", iterations=iterations)
 
 
 def matrix_from_key(key: tuple[int, ...], space: SearchSpace) -> list[list[int]]:
@@ -323,14 +292,14 @@ def save_candidate(
     return known_gsg_path
 
 
-def savings_key(matrix: list[list[int]], space: SearchSpace, args: argparse.Namespace) -> tuple[int, ...]:
+def savings_key(matrix: list[list[int]], space: SearchSpace, args: argparse.Namespace) -> tuple[int, ...] | str:
     if args.allow_isomorphic_savings:
         return matrix_key(matrix, space)
-    return canonical_isomorphism_key(matrix, space, args.max_canonical_permutations)
+    return wl_isomorphism_key(matrix, space, args.wl_iterations)
 
 
-def load_existing_known_gsg_keys(known_gsg_dir: Path | None, space: SearchSpace, args: argparse.Namespace) -> set[tuple[int, ...]]:
-    keys: set[tuple[int, ...]] = set()
+def load_existing_known_gsg_keys(known_gsg_dir: Path | None, space: SearchSpace, args: argparse.Namespace) -> set[tuple[int, ...] | str]:
+    keys: set[tuple[int, ...] | str] = set()
     if known_gsg_dir is None or args.allow_isomorphic_savings:
         return keys
 
@@ -342,7 +311,7 @@ def load_existing_known_gsg_keys(known_gsg_dir: Path | None, space: SearchSpace,
         matrix = read_matrix(path)
         if len(matrix) != space.vertices:
             continue
-        keys.add(canonical_isomorphism_key(matrix, space, args.max_canonical_permutations))
+        keys.add(wl_isomorphism_key(matrix, space, args.wl_iterations))
     return keys
 
 
@@ -451,8 +420,8 @@ def main() -> None:
     parser.add_argument("--save-top", type=int, default=10, help="Check/save savings among this many top-ranked graphs per generation.")
     parser.add_argument("--stop-after-savings", type=int)
     parser.add_argument("--check-all-savings", action="store_true", help="Also compute sigma_2 gonality for graphs with gon(G) < 5.")
-    parser.add_argument("--allow-isomorphic-savings", action="store_true", help="Disable canonical isomorphism filtering when saving savings candidates.")
-    parser.add_argument("--max-canonical-permutations", type=int, default=100000, help="Maximum vertex relabelings allowed for exact canonical labeling.")
+    parser.add_argument("--allow-isomorphic-savings", action="store_true", help="Disable WL isomorphism-hash filtering when saving savings candidates.")
+    parser.add_argument("--wl-iterations", type=int, default=3, help="Weisfeiler-Lehman hash iterations for isomorphism-aware savings filtering.")
     parser.add_argument("--zero-weight", type=float, default=2.0)
     parser.add_argument("--one-weight", type=float, default=1.5)
     parser.add_argument("--high-multiplicity-weight", type=float, default=1.0, help="Initial weight for multiplicities 2 through --max-multiplicity.")

@@ -172,7 +172,7 @@ def add_common_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--output-dir", type=Path)
     parser.add_argument("--check-all-savings", action="store_true")
     parser.add_argument("--allow-isomorphic-savings", action="store_true")
-    parser.add_argument("--max-canonical-permutations", type=int, default=100000)
+    parser.add_argument("--wl-iterations", type=int, default=3)
     parser.add_argument("--zero-weight", type=float, default=1.2)
     parser.add_argument("--one-weight", type=float, default=2.0)
     parser.add_argument("--high-multiplicity-weight", type=float, default=1.4)
