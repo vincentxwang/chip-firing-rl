@@ -18,8 +18,10 @@ for the uniform-gonality comparison used elsewhere in this repo.
 from __future__ import annotations
 
 import argparse
+import itertools
 import json
 import random
+import re
 import sys
 import time
 from dataclasses import dataclass
@@ -80,6 +82,48 @@ def load_julia() -> None:
 
 def matrix_key(matrix: list[list[int]], space: SearchSpace) -> tuple[int, ...]:
     return tuple(matrix[i][j] for i, j in space.edge_pairs)
+
+
+def vertex_signature(matrix: list[list[int]], vertex: int, space: SearchSpace) -> tuple[int, ...]:
+    row = matrix[vertex]
+    multiplicity_counts = tuple(sum(1 for value in row if value == mult) for mult in range(1, space.max_multiplicity + 1))
+    return multiplicity_counts + (sum(row),)
+
+
+def canonical_permutation_count(groups: list[list[int]]) -> int:
+    total = 1
+    for group in groups:
+        for value in range(2, len(group) + 1):
+            total *= value
+    return total
+
+
+def canonical_isomorphism_key(matrix: list[list[int]], space: SearchSpace, max_permutations: int) -> tuple[int, ...]:
+    signatures: dict[tuple[int, ...], list[int]] = {}
+    for vertex in range(space.vertices):
+        signatures.setdefault(vertex_signature(matrix, vertex, space), []).append(vertex)
+
+    ordered_groups = [signatures[key] for key in sorted(signatures)]
+    permutation_count = canonical_permutation_count(ordered_groups)
+    if permutation_count > max_permutations:
+        raise ValueError(
+            f"canonical labeling would require {permutation_count} permutations; "
+            f"increase --max-canonical-permutations or pass --allow-isomorphic-savings"
+        )
+
+    best: tuple[int, ...] | None = None
+    for group_permutations in itertools.product(*(itertools.permutations(group) for group in ordered_groups)):
+        permutation = tuple(vertex for group in group_permutations for vertex in group)
+        key = tuple(
+            matrix[permutation[i]][permutation[j]]
+            for i in range(space.vertices)
+            for j in range(i + 1, space.vertices)
+        )
+        if best is None or key < best:
+            best = key
+    if best is None:
+        raise RuntimeError("failed to compute canonical isomorphism key")
+    return best
 
 
 def matrix_from_key(key: tuple[int, ...], space: SearchSpace) -> list[list[int]]:
@@ -199,16 +243,64 @@ def write_matrix(path: Path, matrix: list[list[int]]) -> None:
             handle.write(" ".join(str(value) for value in row) + "\n")
 
 
+def read_matrix(path: Path) -> list[list[int]]:
+    rows = []
+    for line in path.read_text().splitlines():
+        stripped = line.strip()
+        if stripped:
+            rows.append([int(value) for value in stripped.split()])
+    return rows
+
+
 def append_jsonl(path: Path, record: dict) -> None:
     with path.open("a") as handle:
         handle.write(json.dumps(record, sort_keys=True) + "\n")
 
 
-def save_candidate(output_dir: Path, generation: int, rank: int, matrix: list[list[int]], eval_result: Evaluation) -> None:
+def next_known_gsg_id(directory: Path) -> int:
+    highest = 0
+    for path in directory.glob("gsg_*_gon_*_sigma2_*_v_*_e_*.txt"):
+        match = re.match(r"gsg_(\d+)_gon_", path.name)
+        if match:
+            highest = max(highest, int(match.group(1)))
+    return highest + 1
+
+
+def known_gsg_filename(graph_id: int, matrix: list[list[int]], eval_result: Evaluation) -> str:
+    vertices = len(matrix)
+    return (
+        f"gsg_{graph_id:04d}"
+        f"_gon_{eval_result.gon}"
+        f"_sigma2_{eval_result.sigma2_gon}"
+        f"_v_{vertices}"
+        f"_e_{eval_result.edge_count}.txt"
+    )
+
+
+def save_known_gsg_candidate(known_gsg_dir: Path, graph_id: int, matrix: list[list[int]], eval_result: Evaluation) -> Path:
+    target_dir = known_gsg_dir / f"V{len(matrix)}"
+    target_dir.mkdir(parents=True, exist_ok=True)
+    matrix_path = target_dir / known_gsg_filename(graph_id, matrix, eval_result)
+    write_matrix(matrix_path, matrix)
+    return matrix_path
+
+
+def save_candidate(
+    output_dir: Path,
+    generation: int,
+    rank: int,
+    matrix: list[list[int]],
+    eval_result: Evaluation,
+    known_gsg_dir: Path | None,
+    known_gsg_id: int | None,
+) -> Path | None:
     stem = f"gen_{generation:04d}_rank_{rank:02d}_gon_{eval_result.gon}_sigma2_{eval_result.sigma2_gon}_tw_{eval_result.treewidth}_e_{eval_result.edge_count}"
     matrix_path = output_dir / f"{stem}.txt"
     image_path = output_dir / f"{stem}.png"
     write_matrix(matrix_path, matrix)
+    known_gsg_path = None
+    if known_gsg_dir is not None and known_gsg_id is not None:
+        known_gsg_path = save_known_gsg_candidate(known_gsg_dir, known_gsg_id, matrix, eval_result)
 
     graph = edge_list_to_multigraph(matrix_to_edges(matrix))
     draw_multigraph(graph, image_path, show=False, title="", seed=7)
@@ -225,8 +317,33 @@ def save_candidate(output_dir: Path, generation: int, rank: int, matrix: list[li
             "edge_count": eval_result.edge_count,
             "matrix_file": matrix_path.name,
             "image_file": image_path.name,
+            "known_gsg_file": str(known_gsg_path) if known_gsg_path is not None else None,
         },
     )
+    return known_gsg_path
+
+
+def savings_key(matrix: list[list[int]], space: SearchSpace, args: argparse.Namespace) -> tuple[int, ...]:
+    if args.allow_isomorphic_savings:
+        return matrix_key(matrix, space)
+    return canonical_isomorphism_key(matrix, space, args.max_canonical_permutations)
+
+
+def load_existing_known_gsg_keys(known_gsg_dir: Path | None, space: SearchSpace, args: argparse.Namespace) -> set[tuple[int, ...]]:
+    keys: set[tuple[int, ...]] = set()
+    if known_gsg_dir is None or args.allow_isomorphic_savings:
+        return keys
+
+    target_dir = known_gsg_dir / f"V{space.vertices}"
+    if not target_dir.exists():
+        return keys
+
+    for path in target_dir.glob("gsg_*_gon_*_sigma2_*_v_*_e_*.txt"):
+        matrix = read_matrix(path)
+        if len(matrix) != space.vertices:
+            continue
+        keys.add(canonical_isomorphism_key(matrix, space, args.max_canonical_permutations))
+    return keys
 
 
 def run(args: argparse.Namespace) -> None:
@@ -242,7 +359,9 @@ def run(args: argparse.Namespace) -> None:
     theta = [[weight / weight_total for weight in initial_weights] for _ in space.edge_pairs]
 
     cache: dict[tuple[int, ...], Evaluation] = {}
-    seen_savings: set[tuple[int, ...]] = set()
+    seen_savings = load_existing_known_gsg_keys(args.known_gsg_dir, space, args)
+    preexisting_savings = len(seen_savings)
+    next_gsg_id = next_known_gsg_id(args.known_gsg_dir / f"V{space.vertices}") if args.known_gsg_dir else None
     started_at = time.time()
 
     for generation in range(1, args.generations + 1):
@@ -260,11 +379,15 @@ def run(args: argparse.Namespace) -> None:
         savings_this_gen = 0
 
         for rank, (matrix, eval_result) in enumerate(evaluated[: args.save_top], start=1):
-            key = matrix_key(matrix, space)
+            key = savings_key(matrix, space, args)
             if eval_result.is_saving and key not in seen_savings:
                 seen_savings.add(key)
                 savings_this_gen += 1
-                save_candidate(output_dir, generation, rank, matrix, eval_result)
+                known_gsg_id = None
+                if next_gsg_id is not None:
+                    known_gsg_id = next_gsg_id
+                    next_gsg_id += 1
+                save_candidate(output_dir, generation, rank, matrix, eval_result, args.known_gsg_dir, known_gsg_id)
 
         append_jsonl(
             output_dir / "generations.jsonl",
@@ -280,7 +403,8 @@ def run(args: argparse.Namespace) -> None:
                 "best_edge_count": best_eval.edge_count,
                 "connected": connected,
                 "cache_size": len(cache),
-                "savings_found_total": len(seen_savings),
+                "savings_found_total": len(seen_savings) - preexisting_savings,
+                "preexisting_known_gsgs": preexisting_savings,
             },
         )
 
@@ -295,15 +419,15 @@ def run(args: argparse.Namespace) -> None:
                 f"tw={best_eval.treewidth} "
                 f"edges={best_eval.edge_count} "
                 f"connected={connected}/{args.population_size} "
-                f"savings_total={len(seen_savings)} "
+                f"savings_total={len(seen_savings) - preexisting_savings} "
                 f"elapsed={elapsed:.1f}s",
                 flush=True,
             )
 
-        if args.stop_after_savings is not None and len(seen_savings) >= args.stop_after_savings:
+        if args.stop_after_savings is not None and len(seen_savings) - preexisting_savings >= args.stop_after_savings:
             break
 
-    print(f"Done. Savings candidates found: {len(seen_savings)}")
+    print(f"Done. Savings candidates found: {len(seen_savings) - preexisting_savings}")
     print(f"Output directory: {output_dir}")
 
 
@@ -318,10 +442,17 @@ def main() -> None:
     parser.add_argument("--pseudocount", type=float, default=0.05)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--output-dir", type=Path, default=Path("gonality_savings_runs"))
+    parser.add_argument(
+        "--known-gsg-dir",
+        type=Path,
+        help="Also export savings as known_gsgs-style adjacency matrices under this directory, e.g. known_gsgs/V7/gsg_0001_gon_6_sigma2_5_v_7_e_15.txt.",
+    )
     parser.add_argument("--progress-every", type=int, default=1)
     parser.add_argument("--save-top", type=int, default=10, help="Check/save savings among this many top-ranked graphs per generation.")
     parser.add_argument("--stop-after-savings", type=int)
     parser.add_argument("--check-all-savings", action="store_true", help="Also compute sigma_2 gonality for graphs with gon(G) < 5.")
+    parser.add_argument("--allow-isomorphic-savings", action="store_true", help="Disable canonical isomorphism filtering when saving savings candidates.")
+    parser.add_argument("--max-canonical-permutations", type=int, default=100000, help="Maximum vertex relabelings allowed for exact canonical labeling.")
     parser.add_argument("--zero-weight", type=float, default=2.0)
     parser.add_argument("--one-weight", type=float, default=1.5)
     parser.add_argument("--high-multiplicity-weight", type=float, default=1.0, help="Initial weight for multiplicities 2 through --max-multiplicity.")
