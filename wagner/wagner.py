@@ -112,14 +112,11 @@ def compute_gon_2_subdivision(g, gonality, n, num_nonzero_edges):
     if check_non_gsg(g, gonality, n, num_nonzero_edges):
         return gonality
 
-    # 2. SUBDIVIDE ONLY ONCE! (This saves massive time)
     sub_g = jl.subdivide(g, 2)
     
-    # 3. Backtracking from gonality
     rank_to_check = gonality
 
     while rank_to_check > 0:
-        # Pass the pre-subdivided graph into the computation
         if jl.compute_gonality(sub_g, min_d=rank_to_check, max_d=rank_to_check) == -1:
             return rank_to_check + 1
         rank_to_check -= 1
