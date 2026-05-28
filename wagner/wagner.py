@@ -51,7 +51,7 @@ MYN = int(N * (N - 1) / 2)  # Length of the word (edges in complete graph)
 EDGE_MULTIPLICITY = 2
 MAX_EDGES_TO_CHECK = 18
 
-LEARNING_RATE = 0.005
+LEARNING_RATE = 0.01
 N_SESSIONS = 200        # Number of new sessions per iteration
 PERCENTILE = 90         # Top 100-X percentile we learn from
 SUPER_PERCENTILE = 92   # Top 100-X percentile that survives to next iteration
@@ -93,7 +93,7 @@ class GraphGenerator(nn.Module):
 
 # Initialize model, optimizer, and loss function
 model = GraphGenerator(OBSERVATION_SPACE, EDGE_MULTIPLICITY).to(device)
-optimizer = optim.SGD(model.parameters(), lr=LEARNING_RATE)
+optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
 loss_fn = nn.CrossEntropyLoss()
 
 print(model)
