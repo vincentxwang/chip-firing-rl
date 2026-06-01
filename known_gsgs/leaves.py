@@ -173,7 +173,7 @@ def process_and_prune_folder(target_folder):
             new_gon, new_sigma2 = compute_graph_stats(pruned_matrix)
             
             # Format the new filename: gsg_{ID}_pruned_gon_X_sigma2_Y_v_V_e_E.txt
-            new_filename = f"gsg_{original_id}P_gon_{new_gon}_sigma2_{new_sigma2}_v_{v_new}_e_{e_new}.txt"
+            new_filename = f"gsg_P{original_id}_gon_{new_gon}_sigma2_{new_sigma2}_v_{v_new}_e_{e_new}.txt"
             new_filepath = os.path.join(output_folder, new_filename)
             
             # 6. Save the new matrix
@@ -196,5 +196,5 @@ def process_and_prune_folder(target_folder):
 
 if __name__ == "__main__":
     # Point this to the folder you want to clean
-    target_dir = "known_gsgs/V8"
+    target_dir = "known_gsgs/V9"
     process_and_prune_folder(target_dir)

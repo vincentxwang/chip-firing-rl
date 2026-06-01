@@ -7,6 +7,18 @@ from juliacall import Main as jl
 # Load Julia code
 jl.include("compute_gonality.jl")
 
+
+# CHANGE THIS !!!!!!
+folder_to_vertices = {
+    # "V7": [7],
+    # "V8": [8],
+    # "V9": [9]
+    "V10": [10],
+    # "V14": [14],
+    # "V16": [16],
+    # "V18": [18]
+}
+
 # -------------------------------------------------------------------
 # JULIA CHIP-FIRING FUNCTIONS
 # -------------------------------------------------------------------
@@ -91,14 +103,7 @@ def matrix_to_multigraph(matrix):
 # MAIN VALIDATION SCRIPT
 # -------------------------------------------------------------------
 
-folder_to_vertices = {
-    # "V7": [7],
-    # "V8": [8],
-    "V10": [10],
-    # "V14": [14],
-    # "V16": [16],
-    # "V18": [18]
-}
+
 
 def validate_known_gsgs(folder_path):
     if not os.path.exists(folder_path):
