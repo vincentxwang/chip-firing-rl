@@ -196,5 +196,5 @@ def process_and_prune_folder(target_folder):
 
 if __name__ == "__main__":
     # Point this to the folder you want to clean
-    target_dir = "known_gsgs/V9"
+    target_dir = "known_gsgs/V10"
     process_and_prune_folder(target_dir)
