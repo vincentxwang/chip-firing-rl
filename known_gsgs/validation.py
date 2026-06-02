@@ -11,9 +11,10 @@ jl.include("compute_gonality.jl")
 # CHANGE THIS !!!!!!
 folder_to_vertices = {
     "V7": [7],
-    # "V8": [8],
-    # "V9": [9]
+    "V8": [8],
+    "V9": [9],
     "V10": [10],
+    "V11": [11],
     "V13": [13],
     # "V14": [14],
     # "V16": [16],
